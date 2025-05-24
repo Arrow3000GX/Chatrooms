@@ -2,62 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Realtime Chatroom (Ably)</title>
-  <script src="https://cdn.ably.io/lib/ably.min-1.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Chatroom</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .chat-container { background: white; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); width: 90%; max-width: 600px; display: flex; flex-direction: column; height: 80vh; overflow: hidden; }
-    .messages { flex: 1; padding: 20px; overflow-y: auto; }
-    .message { padding: 10px; margin: 5px 0; border-radius: 8px; max-width: 80%; }
-    .you { background: #007bff; color: white; align-self: flex-end; }
-    .them { background: #e0e0e0; align-self: flex-start; }
-    .form { display: flex; gap: 10px; padding: 10px; border-top: 1px solid #ddd; }
-    input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; }
-    button { padding: 10px 20px; border-radius: 20px; border: none; background: #007bff; color: white; cursor: pointer; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    #chat { height: 80vh; overflow-y: scroll; border-bottom: 1px solid #ccc; padding: 10px; background: #f9f9f9; }
+    #message { width: 80%; padding: 10px; }
+    #send { padding: 10px; }
+    .message { margin: 5px 0; }
+    .system { color: gray; font-style: italic; }
   </style>
 </head>
 <body>
-  <div class="chat-container">
-    <div class="messages" id="messages"></div>
-    <div class="form">
-      <input type="text" id="name" placeholder="Your name" />
-      <input type="text" id="text" placeholder="Type a message..." />
-      <button onclick="send()">Send</button>
-    </div>
-  </div>
+  <h2>🌐 Live Chatroom</h2>
+  <div id="chat"></div>
+  <input id="message" type="text" placeholder="Type a message..." autocomplete="off" />
+  <button id="send">Send</button>
 
   <script>
-    const API_KEY = "kZNFuA.pgX8HQ:3IFD_L8qBtz6_6vwvy34iWw3iXpmaDZaveHIkFRWTAw"; // Replace this
-    const channelName = "global-chatroom";
+    const ws = new WebSocket("ws://localhost:3000");
+    const chat = document.getElementById("chat");
+    const msgInput = document.getElementById("message");
+    const sendBtn = document.getElementById("send");
 
-    const ably = new Ably.Realtime(API_KEY);
-    const channel = ably.channels.get(channelName);
+    ws.onmessage = (event) => {
+      const msg = document.createElement("div");
+      msg.className = "message";
+      msg.textContent = event.data;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    };
 
-    const messagesDiv = document.getElementById("messages");
-
-    function appendMessage(text, isYou) {
-      const div = document.createElement("div");
-      div.className = "message " + (isYou ? "you" : "them");
-      div.textContent = text;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    function send() {
-      const name = document.getElementById("name").value.trim();
-      const text = document.getElementById("text").value.trim();
-      if (!name || !text) return;
-      channel.publish("chat", { name, text });
-      appendMessage(`You: ${text}`, true);
-      document.getElementById("text").value = "";
-    }
-
-    channel.subscribe("chat", (msg) => {
-      const { name, text } = msg.data;
-      const myName = document.getElementById("name").value.trim();
-      if (name !== myName) {
-        appendMessage(`${name}: ${text}`, false);
+    sendBtn.onclick = () => {
+      if (msgInput.value.trim()) {
+        ws.send(msgInput.value);
+        msgInput.value = "";
       }
+    };
+
+    msgInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendBtn.click();
     });
   </script>
 </body>
