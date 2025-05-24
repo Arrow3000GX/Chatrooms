@@ -1,55 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>🧪 Tab-Only Chatroom</title>
-  <style>
-    body { font-family: sans-serif; background: #fafafa; margin: 0; padding: 1em; }
-    #chat { height: 70vh; overflow-y: auto; border: 1px solid #ccc; padding: 1em; background: #fff; }
-    .msg { margin: 0.5em 0; }
-    .sys { color: gray; font-style: italic; }
-    input, button { padding: 0.5em; font-size: 1em; }
-    #username { width: 25%; }
-    #message { width: 50%; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cross-device Chatroom (Single HTML)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 1em auto;
+    background: #f0f0f0;
+    color: #222;
+  }
+  #chat {
+    border: 1px solid #ccc;
+    height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: white;
+    margin-bottom: 1em;
+    border-radius: 8px;
+  }
+  #chat div.message {
+    margin: 5px 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    max-width: 80%;
+    word-wrap: break-word;
+  }
+  #chat div.message.self {
+    background: #daf1da;
+    margin-left: auto;
+    text-align: right;
+  }
+  #chat div.message.other {
+    background: #e1e1e1;
+    margin-right: auto;
+    text-align: left;
+  }
+  #input-area {
+    display: flex;
+    gap: 10px;
+  }
+  #input-area input[type="text"] {
+    flex-grow: 1;
+    padding: 10px;
+    font-size: 1em;
+  }
+  #input-area button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+  }
+  #nickname {
+    margin-bottom: 1em;
+  }
+  #nickname input {
+    padding: 6px 8px;
+    font-size: 1em;
+  }
+  #status {
+    margin-bottom: 1em;
+    font-size: 0.9em;
+    color: #555;
+  }
+</style>
 </head>
 <body>
-  <h2>🗨️ Local Chatroom (Multi-tab)</h2>
-  <div id="chat"></div>
-  <input id="username" placeholder="Name" />
-  <input id="message" placeholder="Message" />
-  <button onclick="sendMessage()">Send</button>
 
-  <script>
-    const chat = document.getElementById("chat");
-    const username = document.getElementById("username");
-    const message = document.getElementById("message");
+<h2>🌐 Cross-Device Chatroom (Single HTML)</h2>
 
-    function sendMessage() {
-      const name = username.value.trim() || "Anonymous";
-      const text = message.value.trim();
-      if (!text) return;
-      const msg = { name, text, time: new Date().toLocaleTimeString() };
-      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-      history.push(msg);
-      localStorage.setItem("chat_history", JSON.stringify(history));
-      message.value = "";
+<div id="nickname">
+  Your nickname: <input id="nick" type="text" maxlength="15" placeholder="Enter nickname" />
+  <button id="set-nick">Set</button>
+</div>
+
+<div id="status">Not connected</div>
+
+<div id="chat"></div>
+
+<div id="input-area">
+  <input id="message" type="text" placeholder="Type your message..." disabled />
+  <button id="send" disabled>Send</button>
+</div>
+
+<script>
+(() => {
+  const chat = document.getElementById('chat');
+  const messageInput = document.getElementById('message');
+  const sendBtn = document.getElementById('send');
+  const nickInput = document.getElementById('nick');
+  const setNickBtn = document.getElementById('set-nick');
+  const statusDiv = document.getElementById('status');
+
+  let nickname = '';
+  let ws;
+
+  // Escape HTML helper
+  function escapeHTML(text) {
+    return text.replace(/[&<>"']/g, m => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[m]));
+  }
+
+  // Add message to chat
+  function addMessage(user, text, self = false) {
+    const div = document.createElement('div');
+    div.classList.add('message');
+    div.classList.add(self ? 'self' : 'other');
+    const timeStr = new Date().toLocaleTimeString();
+    div.innerHTML = `<strong>${escapeHTML(user)}</strong> <small style="color:#666;">${timeStr}</small><br>${escapeHTML(text)}`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  // Connect to WebSocket server
+  function connectWS() {
+    // Using a public echo websocket server
+    ws = new WebSocket('wss://echo.websocket.events');
+
+    ws.onopen = () => {
+      statusDiv.textContent = 'Connected to chat server.';
+      sendBtn.disabled = false;
+      messageInput.disabled = false;
+    };
+
+    ws.onclose = () => {
+      statusDiv.textContent = 'Disconnected. Trying to reconnect...';
+      sendBtn.disabled = true;
+      messageInput.disabled = true;
+      setTimeout(connectWS, 3000);
+    };
+
+    ws.onerror = (e) => {
+      statusDiv.textContent = 'Connection error, retrying...';
+      sendBtn.disabled = true;
+      messageInput.disabled = true;
+      ws.close();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat' && data.user && data.text) {
+          // Show only messages from other users or self (but to avoid duplication, skip if from self and just sent)
+          if (data.user !== nickname) addMessage(data.user, data.text, false);
+        }
+      } catch {}
+    };
+  }
+
+  // Send chat message over WebSocket
+  function sendMessage() {
+    if (!nickname) return alert('Set your nickname first!');
+    const text = messageInput.value.trim();
+    if (!text) return;
+    // Add locally
+    addMessage(nickname, text, true);
+    // Send JSON string to WS server
+    ws.send(JSON.stringify({ type: 'chat', user: nickname, text }));
+    messageInput.value = '';
+    messageInput.focus();
+  }
+
+  setNickBtn.onclick = () => {
+    const val = nickInput.value.trim();
+    if (val.length < 1) {
+      alert('Please enter a nickname!');
+      return;
     }
+    nickname = val;
+    nickInput.disabled = true;
+    setNickBtn.disabled = true;
+    messageInput.disabled = false;
+    sendBtn.disabled = false;
+    messageInput.focus();
+    statusDiv.textContent = 'Connecting to chat server...';
+    connectWS();
+  };
 
-    function renderMessages() {
-      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-      chat.innerHTML = "";
-      history.forEach(msg => {
-        const div = document.createElement("div");
-        div.className = "msg";
-        div.textContent = `[${msg.time}] ${msg.name}: ${msg.text}`;
-        chat.appendChild(div);
-      });
-      chat.scrollTop = chat.scrollHeight;
-    }
+  sendBtn.onclick = sendMessage;
 
-    setInterval(renderMessages, 1000); // Poll every second
-    window.addEventListener("load", renderMessages);
-  </script>
+  messageInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+})();
+</script>
+
 </body>
 </html>
