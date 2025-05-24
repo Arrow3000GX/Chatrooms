@@ -3,99 +3,72 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>🌐 Local Tab Chatroom</title>
+  <title>Firebase Cloud Chatroom</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
     body {
       margin: 0;
-      padding: 0;
       font-family: 'Segoe UI', sans-serif;
       background: #e5eaf5;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
+      height: 100vh;
     }
-
     .chat-container {
       width: 100%;
-      max-width: 900px;
-      background: #ffffff;
+      max-width: 800px;
+      background: #fff;
       border-radius: 20px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
       display: flex;
       flex-direction: column;
       height: 90vh;
-      overflow: hidden;
     }
-
     .messages {
       flex: 1;
-      padding: 20px;
       overflow-y: auto;
-      scroll-behavior: smooth;
+      padding: 20px;
       display: flex;
       flex-direction: column;
     }
-
     .message {
-      max-width: 75%;
-      padding: 12px 16px;
-      margin: 8px 0;
+      padding: 10px 14px;
       border-radius: 20px;
-      line-height: 1.5;
+      margin: 6px 0;
+      max-width: 70%;
       word-wrap: break-word;
     }
-
     .user {
       align-self: flex-end;
       background: #007bff;
       color: white;
-      border-bottom-right-radius: 5px;
     }
-
     .other {
       align-self: flex-start;
       background: #f1f1f1;
       color: #333;
-      border-bottom-left-radius: 5px;
     }
-
     .form-area {
       display: flex;
-      gap: 10px;
       padding: 16px;
       border-top: 1px solid #ddd;
+      gap: 10px;
     }
-
     input[type="text"] {
       flex: 1;
       padding: 12px;
-      font-size: 16px;
-      border: 1px solid #ccc;
       border-radius: 999px;
-      outline: none;
+      border: 1px solid #ccc;
     }
-
     button {
       padding: 12px 20px;
       border: none;
-      font-size: 16px;
-      border-radius: 999px;
-      background-color: #007bff;
+      background: #007bff;
       color: white;
+      border-radius: 999px;
       cursor: pointer;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-width: 600px) {
-      .chat-container {
-        border-radius: 0;
-        height: 100vh;
-      }
     }
   </style>
 </head>
@@ -104,12 +77,26 @@
     <div class="messages" id="chat"></div>
     <div class="form-area">
       <input type="text" id="username" placeholder="Your name" />
-      <input type="text" id="message" placeholder="Type your message..." />
+      <input type="text" id="message" placeholder="Type a message..." />
       <button onclick="sendMessage()">Send</button>
     </div>
   </div>
 
   <script>
+    // ✅ Your Firebase config (specific to your project)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCU7p7_l-HZ1FqZGZsmAEIayWBD_xc0GgE",
+      authDomain: "chatrooms-aarav.firebaseapp.com",
+      databaseURL: "https://chatrooms-aarav-default-rtdb.firebaseio.com",
+      projectId: "chatrooms-aarav",
+      storageBucket: "chatrooms-aarav.appspot.com",
+      messagingSenderId: "1082877686808",
+      appId: "1:1082877686808:web:4017b69350e6812c2bce48"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref("messages");
+
     const chat = document.getElementById("chat");
     const usernameInput = document.getElementById("username");
     const messageInput = document.getElementById("message");
@@ -119,41 +106,24 @@
       const text = messageInput.value.trim();
       if (!text) return;
 
-      const msg = {
+      db.push({
         name,
         text,
-        time: Date.now()
-      };
-
-      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-      history.push(msg);
-      localStorage.setItem("chat_history", JSON.stringify(history));
-      localStorage.setItem("chat_ping", Date.now()); // Trigger 'storage' event
-      messageInput.value = "";
-      renderMessages(); // Instant local update
-    }
-
-    function renderMessages() {
-      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-      chat.innerHTML = "";
-      history.forEach(msg => {
-        const div = document.createElement("div");
-        div.className = "message";
-        div.classList.add(msg.name === (usernameInput.value || "Anonymous") ? "user" : "other");
-        div.textContent = `${msg.name}: ${msg.text}`;
-        chat.appendChild(div);
+        timestamp: Date.now()
       });
-      chat.scrollTop = chat.scrollHeight;
+
+      messageInput.value = "";
     }
 
-    // Sync across tabs
-    window.addEventListener("storage", (e) => {
-      if (e.key === "chat_ping" || e.key === "chat_history") {
-        renderMessages();
-      }
+    db.on("child_added", snapshot => {
+      const { name, text } = snapshot.val();
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "message";
+      msgDiv.classList.add(name === usernameInput.value.trim() ? "user" : "other");
+      msgDiv.textContent = `${name}: ${text}`;
+      chat.appendChild(msgDiv);
+      chat.scrollTop = chat.scrollHeight;
     });
-
-    window.onload = renderMessages;
   </script>
 </body>
 </html>
