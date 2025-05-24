@@ -121,15 +121,17 @@
       if (!text) return;
 
       const msg = {
-        name: name,
-        text: text,
+        name,
+        text,
         time: Date.now()
       };
 
       const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
       history.push(msg);
       localStorage.setItem("chat_history", JSON.stringify(history));
+      localStorage.setItem("chat_ping", Date.now()); // Trigger 'storage' event
       messageInput.value = "";
+      renderMessages(); // Instant local update
     }
 
     function renderMessages() {
@@ -145,7 +147,13 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
-    setInterval(renderMessages, 1000);
+    // Sync across tabs
+    window.addEventListener("storage", (e) => {
+      if (e.key === "chat_ping" || e.key === "chat_history") {
+        renderMessages();
+      }
+    });
+
     window.onload = renderMessages;
   </script>
 </body>
