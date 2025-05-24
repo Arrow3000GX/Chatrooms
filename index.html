@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Cross-device Chatroom (Single HTML)</title>
+<title>Cross-device Chatroom with Firebase</title>
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -59,44 +59,52 @@
     padding: 6px 8px;
     font-size: 1em;
   }
-  #status {
-    margin-bottom: 1em;
-    font-size: 0.9em;
-    color: #555;
-  }
 </style>
 </head>
 <body>
 
-<h2>🌐 Cross-Device Chatroom (Single HTML)</h2>
+<h2>🌐 Cross-Device Chatroom with Firebase</h2>
 
 <div id="nickname">
   Your nickname: <input id="nick" type="text" maxlength="15" placeholder="Enter nickname" />
   <button id="set-nick">Set</button>
 </div>
 
-<div id="status">Not connected</div>
-
 <div id="chat"></div>
 
-<div id="input-area">
-  <input id="message" type="text" placeholder="Type your message..." disabled />
-  <button id="send" disabled>Send</button>
+<div id="input-area" style="display:none;">
+  <input id="message" type="text" placeholder="Type your message..." />
+  <button id="send">Send</button>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 (() => {
-  const chat = document.getElementById('chat');
-  const messageInput = document.getElementById('message');
-  const sendBtn = document.getElementById('send');
+  // --- TODO: Replace these with your Firebase project config ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyAhkbaVV9ubQcAoPbBFEyU7ozYmBuv2R50",
+    authDomain: "chat-2db84.firebaseapp.com",
+    projectId: "chat-2db84",
+    storageBucket: "chat-2db84.firebasestorage.app",
+    messagingSenderId: "201943701573",
+    appId: "1:201943701573:web:4d01e63215bdf515a5ab2c",
+    measurementId: "G-Q9HXELV401"
+  };
+  // -------------------------------------------------------------
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const chatDiv = document.getElementById('chat');
   const nickInput = document.getElementById('nick');
   const setNickBtn = document.getElementById('set-nick');
-  const statusDiv = document.getElementById('status');
+  const inputArea = document.getElementById('input-area');
+  const messageInput = document.getElementById('message');
+  const sendBtn = document.getElementById('send');
 
   let nickname = '';
-  let ws;
 
-  // Escape HTML helper
   function escapeHTML(text) {
     return text.replace(/[&<>"']/g, m => ({
       '&':'&amp;',
@@ -107,65 +115,40 @@
     }[m]));
   }
 
-  // Add message to chat
   function addMessage(user, text, self = false) {
     const div = document.createElement('div');
     div.classList.add('message');
     div.classList.add(self ? 'self' : 'other');
     const timeStr = new Date().toLocaleTimeString();
     div.innerHTML = `<strong>${escapeHTML(user)}</strong> <small style="color:#666;">${timeStr}</small><br>${escapeHTML(text)}`;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    chatDiv.appendChild(div);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
   }
 
-  // Connect to WebSocket server
-  function connectWS() {
-    // Using a public echo websocket server
-    ws = new WebSocket('wss://echo.websocket.events');
+  // Listen for new messages in Firebase
+  const messagesRef = db.ref('chat/messages');
+  messagesRef.limitToLast(100).on('child_added', (snapshot) => {
+    const msg = snapshot.val();
+    if (!msg) return;
+    // Show message
+    addMessage(msg.user, msg.text, msg.user === nickname);
+  });
 
-    ws.onopen = () => {
-      statusDiv.textContent = 'Connected to chat server.';
-      sendBtn.disabled = false;
-      messageInput.disabled = false;
-    };
-
-    ws.onclose = () => {
-      statusDiv.textContent = 'Disconnected. Trying to reconnect...';
-      sendBtn.disabled = true;
-      messageInput.disabled = true;
-      setTimeout(connectWS, 3000);
-    };
-
-    ws.onerror = (e) => {
-      statusDiv.textContent = 'Connection error, retrying...';
-      sendBtn.disabled = true;
-      messageInput.disabled = true;
-      ws.close();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'chat' && data.user && data.text) {
-          // Show only messages from other users or self (but to avoid duplication, skip if from self and just sent)
-          if (data.user !== nickname) addMessage(data.user, data.text, false);
-        }
-      } catch {}
-    };
-  }
-
-  // Send chat message over WebSocket
-  function sendMessage() {
-    if (!nickname) return alert('Set your nickname first!');
+  sendBtn.onclick = () => {
     const text = messageInput.value.trim();
     if (!text) return;
-    // Add locally
-    addMessage(nickname, text, true);
-    // Send JSON string to WS server
-    ws.send(JSON.stringify({ type: 'chat', user: nickname, text }));
+    messagesRef.push({
+      user: nickname,
+      text: text,
+      timestamp: Date.now()
+    });
     messageInput.value = '';
     messageInput.focus();
-  }
+  };
+
+  messageInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendBtn.click();
+  });
 
   setNickBtn.onclick = () => {
     const val = nickInput.value.trim();
@@ -176,19 +159,9 @@
     nickname = val;
     nickInput.disabled = true;
     setNickBtn.disabled = true;
-    messageInput.disabled = false;
-    sendBtn.disabled = false;
+    inputArea.style.display = 'flex';
     messageInput.focus();
-    statusDiv.textContent = 'Connecting to chat server...';
-    connectWS();
   };
-
-  sendBtn.onclick = sendMessage;
-
-  messageInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') sendMessage();
-  });
-
 })();
 </script>
 
