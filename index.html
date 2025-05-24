@@ -1,1 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🧪 Tab-Only Chatroom</title>
+  <style>
+    body { font-family: sans-serif; background: #fafafa; margin: 0; padding: 1em; }
+    #chat { height: 70vh; overflow-y: auto; border: 1px solid #ccc; padding: 1em; background: #fff; }
+    .msg { margin: 0.5em 0; }
+    .sys { color: gray; font-style: italic; }
+    input, button { padding: 0.5em; font-size: 1em; }
+    #username { width: 25%; }
+    #message { width: 50%; }
+  </style>
+</head>
+<body>
+  <h2>🗨️ Local Chatroom (Multi-tab)</h2>
+  <div id="chat"></div>
+  <input id="username" placeholder="Name" />
+  <input id="message" placeholder="Message" />
+  <button onclick="sendMessage()">Send</button>
 
+  <script>
+    const chat = document.getElementById("chat");
+    const username = document.getElementById("username");
+    const message = document.getElementById("message");
+
+    function sendMessage() {
+      const name = username.value.trim() || "Anonymous";
+      const text = message.value.trim();
+      if (!text) return;
+      const msg = { name, text, time: new Date().toLocaleTimeString() };
+      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
+      history.push(msg);
+      localStorage.setItem("chat_history", JSON.stringify(history));
+      message.value = "";
+    }
+
+    function renderMessages() {
+      const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
+      chat.innerHTML = "";
+      history.forEach(msg => {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.textContent = `[${msg.time}] ${msg.name}: ${msg.text}`;
+        chat.appendChild(div);
+      });
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    setInterval(renderMessages, 1000); // Poll every second
+    window.addEventListener("load", renderMessages);
+  </script>
+</body>
+</html>
